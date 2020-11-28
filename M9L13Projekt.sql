@@ -61,21 +61,23 @@ create or replace view Grazyna_and_Janusz_trasactions
               values ('2020_11', 9500, 9500);
      
    --4       
-   create function expense_tracker.budget()
+   create or replace function expense_tracker.budget()
    returns trigger
    language plpgsql
    as
    $$
         begin
-                if (tg_op ='delete') then
-                    update expense_tracker.monthly_budget_planned set left_budget = (left_budget + old.transactions.transaction_value );
+            --RAISE NOTICE 'Co jest w TG_OP: %', TG_OP;
+                if (tg_op ='DELETE') then
+                    update expense_tracker.monthly_budget_planned set left_budget = (left_budget - old.transaction_value );
                         
-                elseif (tg_op = 'update') then
-                    update expense_tracker.monthly_budget_planned set left_budget = (left_budget + new.transactions.transaction_value );
-                
-                elseif (tg_op ='insert') then
-                   update expense_tracker.monthly_budget_planned set left_budget = (left_budget + new.transactions.transaction_value );
-               RAISE NOTICE 'wykonanie_funkcji';
+                elseif (tg_op = 'UPDATE') then
+                    update expense_tracker.monthly_budget_planned set left_budget = (left_budget + new.transaction_value );
+                    
+                elseif (tg_op ='INSERT') then
+                   update expense_tracker.monthly_budget_planned set left_budget = (left_budget + new.transaction_value );
+                    
+               --RAISE NOTICE 'wykonanie_funkcji';
                 end if; 
     return null;
  end
@@ -87,8 +89,15 @@ on expense_tracker.transactions
 for each row
 execute procedure expense_tracker.budget(); 
 
-EXPLAIN analyze insert into transactions (id_trans_ba, id_trans_cat, id_trans_subcat, 
+--EXPLAIN analyze 
+insert into transactions (id_trans_ba, id_trans_cat, id_trans_subcat, 
                           id_trans_type, id_user, transaction_date, transaction_value,transaction_description) 
-                          values(1,2,2,4,null,now(),26.00,316);
+                          values(1,2,2,4,null,now(),-9600.00,316);
                       
-                       
+ --Trigger nie uwzględnia 
+ -- a) dodania kolejnego miesiąca transakcji (chyba że kontrolujemy to inną procedurą), 
+--  b) w przypadku usuwania jakiejsć transakcji jesli był to wydatek należało by kwotę tą 
+--     dodać do planowanego budżetu a w przypadku dochodu odjąć 
+
+                      select * from transactions order by insert_date desc;
+                      delete from transactions where id_transaction =7137;
